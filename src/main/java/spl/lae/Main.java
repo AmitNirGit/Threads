@@ -20,7 +20,7 @@ public class Main {
             ComputationNode root = parser.parse(inputPath);
             ComputationNode result = engine.run(root);
             OutputWriter.write(result.getMatrix(), outputPath);
-            System.out.print(engine.getWorkerReport());
+            System.out.println(engine.getWorkerReport());
         } catch (ParseException e) {
             OutputWriter.write("Error: " + e.getMessage(), outputPath);
         } finally {

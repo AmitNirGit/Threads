@@ -87,8 +87,9 @@ public class TiredExecutor {
         report += "--------------------------------------------------\n";
         for (TiredThread worker : workers) {
             report += "Worker " + worker.getWorkerId() + 
-                      ": fatigue=" + worker.getFatigue() + 
-                      ", busy=" + worker.isBusy() + "\n";
+                      ": fatigue=" + String.format("%.2f", worker.getFatigue()) + 
+                      ", timeUsed=" + String.format("%.3fms", worker.getTimeUsed() / 1_000_000.0) +
+                      ", timeIdle=" + String.format("%.3fms", worker.getTimeIdle() / 1_000_000.0) + "\n";
         }
         return report;
     }
