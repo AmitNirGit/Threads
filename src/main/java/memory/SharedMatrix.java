@@ -54,10 +54,10 @@ public class SharedMatrix {
         }
         
         acquireAllVectorReadLocks(vectors);
-        double[][] newMartix = new double[vectors.length][vectors[0].length()];
+        double[][] newMartix = new double[vectors.length][vectors[0].lengthUnsafe()];
 
         for (int i = 0; i < vectors.length; i++) {
-            for (int j = 0; j < vectors[i].length(); j++) {
+            for (int j = 0; j < vectors[i].lengthUnsafe(); j++) {
                 newMartix[i][j] = vectors[i].getUnsafe(j);
             }
         }
@@ -74,6 +74,9 @@ public class SharedMatrix {
     }
 
     public SharedVector get(int index) {
+        if (index < 0 || index >= vectors.length) {
+            throw new IndexOutOfBoundsException("Index " + index + " is out of bounds for matrix of size " + vectors.length);
+        }
         return vectors[index];
     }
 
@@ -82,10 +85,14 @@ public class SharedMatrix {
     }
 
     public VectorOrientation getOrientation() {
-        if (vectors.length == 0)
+        SharedVector[] currentVectors = vectors; // Single volatile read - ensures consistency
+        if (currentVectors.length == 0)
             return VectorOrientation.ROW_MAJOR;
-        else
-            return vectors[0].getOrientation();
+        SharedVector firstVector = currentVectors[0];
+        if (firstVector == null)
+            return VectorOrientation.ROW_MAJOR;
+        // SharedVector.getOrientation() handles its own locking
+        return firstVector.getOrientation();
     }
 
     private void acquireAllVectorReadLocks(SharedVector[] vecs) {
@@ -121,9 +128,5 @@ public class SharedMatrix {
         for (SharedVector sharedVector : vectors) {
             sharedVector.transpose();
         }
-    }
-
-    public SharedVector[] getVectors(){
-        return this.vectors;
     }
 }

@@ -2,8 +2,6 @@ package memory;
 
 import java.util.concurrent.locks.ReadWriteLock;
 
-import parser.OutputWriter;
-
 public class SharedVector {
 
     private double[] vector;
@@ -27,8 +25,15 @@ public class SharedVector {
         return vector[index];
     }
 
-    public int length() {
+    int lengthUnsafe() {
         return vector.length;
+    }
+
+    public int length() {
+        readLock();
+        int length = vector.length;
+        readUnlock();
+        return length;
     }
 
     public VectorOrientation getOrientation() {
@@ -65,16 +70,40 @@ public class SharedVector {
     }
 
     public void add(SharedVector other) {
-        writeLock();
-        other.readLock();
-        if (other.length() != length()) {
-            throw new Error("error");
+        // Ensure consistent lock ordering to prevent deadlock
+        if (System.identityHashCode(this) < System.identityHashCode(other)) {
+            writeLock();
+            other.readLock();
+            try {
+                if (other.lengthUnsafe() != lengthUnsafe()) {
+                    writeUnlock();  
+                    other.readUnlock();
+                    throw new Error("Vectors have different lengths");
+                }
+                for (int i = 0; i < vector.length; i++) {
+                    vector[i] = vector[i] + other.vector[i];
+                }
+            } finally {
+                other.readUnlock();
+                writeUnlock();
+            }
+        } else {
+            other.readLock();
+            writeLock();
+            try {
+                if (other.lengthUnsafe() != lengthUnsafe()) {
+                    writeUnlock();  
+                    other.readUnlock();
+                    throw new Error("Vectors have different lengths");
+                }
+                for (int i = 0; i < vector.length; i++) {
+                    vector[i] = vector[i] + other.vector[i];
+                }
+            } finally {
+                writeUnlock();
+                other.readUnlock();
+            }
         }
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = vector[i] + other.vector[i];
-        }
-        writeUnlock();
-        other.readUnlock();
     }
 
     public void negate() {
@@ -86,45 +115,69 @@ public class SharedVector {
     }
 
     public double dot(SharedVector other) {
-        readLock();
-        other.readLock();
-        if (this.orientation == other.orientation) {
-            throw new Error("Invalid vectors, vectors has the same orientation");
+        // Ensure consistent lock ordering to prevent deadlock
+        if (System.identityHashCode(this) < System.identityHashCode(other)) {
+            readLock();
+            other.readLock();
+            try {
+                if (this.orientation == other.orientation) {
+                    throw new Error("Invalid vectors, vectors has the same orientation");
+                }
+                if (this.lengthUnsafe() != other.lengthUnsafe()) {
+                    throw new Error("Invalid vectors, vectors has different lengths");
+                }
+                double result = 0;
+                for (int i = 0; i < vector.length; i++) {
+                    result = result + vector[i] * other.vector[i];
+                }
+                return result;
+            } finally {
+                other.readUnlock();
+                readUnlock();
+            }
+        } else {
+            other.readLock();
+            readLock();
+            try {
+                if (this.orientation == other.orientation) {
+                    throw new Error("Invalid vectors, vectors has the same orientation");
+                }
+                if (this.lengthUnsafe() != other.lengthUnsafe()) {
+                    throw new Error("Invalid vectors, vectors has different lengths");
+                }
+                double result = 0;
+                for (int i = 0; i < vector.length; i++) {
+                    result = result + vector[i] * other.vector[i];
+                }
+                return result;
+            } finally {
+                readUnlock();
+                other.readUnlock();
+            }
         }
-        if (this.length() != other.length()) {
-            throw new Error("Invalid vectors, vectors has different lengths");
-        }
-        double result = 0;
-        for (int i = 0; i < vector.length; i++) {
-            result = result + vector[i] * other.vector[i];
-        }
-        readUnlock();
-        other.readUnlock();
-        return result;
     }
 
     public void vecMatMul(SharedMatrix matrix) {
-        writeLock();
         double[][] martixCopy = matrix.readRowMajor();
         if (martixCopy.length == 0 || martixCopy[0].length == 0) {
-            writeUnlock();
             throw new Error("Cannot multiply with empty matrix");
         }
         if (vector.length != martixCopy.length) {
-            writeUnlock();
             throw new Error("Vector length must match number of matrix rows");
         }
+        int matrixWidth = martixCopy[0].length;
+        writeLock();
         
-        double[] newVector = new double[martixCopy[0].length];
+        double[] newVector = new double[matrixWidth];
 
-        for (int i = 0; i < martixCopy[0].length; i++) {
+        for (int i = 0; i < matrixWidth; i++) {
             double sum = 0;
             for (int j = 0; j < vector.length; j++) {
                 sum = sum + vector[j] * martixCopy[j][i];
             }
             newVector[i] = sum;
         }
-        this.vector = newVector;
-        writeUnlock();
+            this.vector = newVector;
+            writeUnlock();
     }
 }
