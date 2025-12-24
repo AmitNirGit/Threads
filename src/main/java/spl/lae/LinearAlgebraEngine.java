@@ -4,6 +4,7 @@ import parser.*;
 import memory.*;
 import scheduling.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class LinearAlgebraEngine {
@@ -17,51 +18,106 @@ public class LinearAlgebraEngine {
     }
 
     public ComputationNode run(ComputationNode computationRoot) {
-        while (!computationRoot.getChildren().isEmpty()) {
+        computationRoot.associativeNesting();
+        while (computationRoot.getNodeType() != ComputationNodeType.MATRIX) {
             ComputationNode resolveable = computationRoot.findResolvable();
-            ComputationNodeType nodeType = resolveable.getNodeType();
-            switch (nodeType) {
-                case ComputationNodeType.ADD:
-                // TODO
-                    break;
-                case ComputationNodeType.MULTIPLY:
-
-                    break;
-
-                default:
-                    break;
-            }
+            loadAndCompute(resolveable);
         }
-        return null;
+        return computationRoot;
     }
 
     public void loadAndCompute(ComputationNode node) {
-        // TODO: load operand matrices
-        // TODO: create compute tasks & submit tasks to executor
+        ComputationNodeType nodeType = node.getNodeType();
+        this.leftMatrix = new SharedMatrix(node.getChildren().get(0).getMatrix());
+
+        if (node.getChildren().size() > 1) {
+            this.rightMatrix = new SharedMatrix(node.getChildren().get(1).getMatrix());
+        } else {
+            this.rightMatrix = null;
+        }
+
+        List<Runnable> tasks;
+        switch (nodeType) {
+            case ComputationNodeType.ADD:
+                tasks = createAddTasks();
+                break;
+            case ComputationNodeType.MULTIPLY:
+                tasks = createMultiplyTasks();
+                break;
+            case ComputationNodeType.NEGATE:
+                tasks = createNegateTasks();
+                break;
+            case ComputationNodeType.TRANSPOSE:
+                tasks = createTransposeTasks();
+                break;
+            default:
+                return;
+        }
+
+        if (tasks != null) {
+            executor.submitAll(tasks);
+        }
+        // Update the node with the result matrix
+        node.resolve(leftMatrix.readRowMajor());
     }
 
     public List<Runnable> createAddTasks() {
-        // TODO: return tasks that perform row-wise addition
-        return null;
+        if (rightMatrix == null || leftMatrix == null) {
+            throw new Error("Need at least 2 matrices to add");
+        }
+        List<Runnable> tasks = new ArrayList<Runnable>();
+        for (int i = 0; i < leftMatrix.length(); i++) {
+            final int rowIndex = i;
+            Runnable task = () -> leftMatrix.get(rowIndex).add(rightMatrix.get(rowIndex));
+            tasks.add(task);
+        }
+        return tasks;
     }
 
     public List<Runnable> createMultiplyTasks() {
-        // TODO: return tasks that perform row × matrix multiplication
-        return null;
+        if (rightMatrix == null || leftMatrix == null) {
+            throw new Error("Need at least 2 matrix to multiply");
+        }
+        List<Runnable> tasks = new ArrayList<Runnable>();
+        for (int i = 0; i < leftMatrix.length(); i++) {
+            final int rowIndex = i;
+            Runnable task = () -> leftMatrix.get(rowIndex).vecMatMul(rightMatrix);
+            tasks.add(task);
+        }
+        return tasks;
     }
 
     public List<Runnable> createNegateTasks() {
-        // TODO: return tasks that negate rows
-        return null;
+        if (rightMatrix != null) {
+            throw new Error("Unary opeartion can get only 1 matrix");
+        }
+        List<Runnable> tasks = new ArrayList<Runnable>();
+        for (int i = 0; i < leftMatrix.length(); i++) {
+            final int rowIndex = i;
+            Runnable task = () -> leftMatrix.get(rowIndex).negate();
+            tasks.add(task);
+        }
+        return tasks;
     }
 
     public List<Runnable> createTransposeTasks() {
-        // TODO: return tasks that transpose rows
-        return null;
+        if (rightMatrix != null) {
+            throw new Error("Unary opeartion can get only 1 matrix");
+        }
+        List<Runnable> tasks = new ArrayList<Runnable>();
+        for (int i = 0; i < leftMatrix.length(); i++) {
+            final int rowIndex = i;
+            Runnable task = () -> leftMatrix.get(rowIndex).transpose();
+            tasks.add(task);
+        }
+        return tasks;
     }
 
     public String getWorkerReport() {
-        // TODO: return summary of worker activity
-        return null;
+        return executor.getWorkerReport();
+    }
+
+    public void shutdown() throws InterruptedException {
+        executor.shutdown();
     }
 }

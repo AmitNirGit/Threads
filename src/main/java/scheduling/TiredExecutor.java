@@ -83,7 +83,13 @@ public class TiredExecutor {
     }
 
     public synchronized String getWorkerReport() {
-        // TODO: return readable statistics for each worker
-        return null;
+        String report = "Worker Report:\n";
+        report += "--------------------------------------------------\n";
+        for (TiredThread worker : workers) {
+            report += "Worker " + worker.getWorkerId() + 
+                      ": fatigue=" + worker.getFatigue() + 
+                      ", busy=" + worker.isBusy() + "\n";
+        }
+        return report;
     }
 }
