@@ -165,9 +165,9 @@ public class SharedVector {
         if (vector.length != martixCopy.length) {
             throw new Error("Vector length must match number of matrix rows");
         }
-        int matrixWidth = martixCopy[0].length;
         writeLock();
         
+        int matrixWidth = martixCopy[0].length;
         double[] newVector = new double[matrixWidth];
 
         for (int i = 0; i < matrixWidth; i++) {

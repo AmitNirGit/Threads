@@ -44,38 +44,39 @@ public class SharedMatrix {
     public double[][] readRowMajor() {
         if (isEmpty())
             return new double[0][0];
-        
-        boolean transposed = false;
-        if (getOrientation() == VectorOrientation.COLUMN_MAJOR) {
-            acquireAllVectorWriteLocks(vectors);
-            transposeMatrix();
-            transposed = true;
-            releaseAllVectorWriteLocks(vectors);
-        }
-        
-        acquireAllVectorReadLocks(vectors);
-        double[][] newMartix = new double[vectors.length][vectors[0].lengthUnsafe()];
 
-        for (int i = 0; i < vectors.length; i++) {
-            for (int j = 0; j < vectors[i].lengthUnsafe(); j++) {
-                newMartix[i][j] = vectors[i].getUnsafe(j);
+        acquireAllVectorReadLocks(vectors);
+        VectorOrientation orientation = getOrientation();
+        double[][] martixCopy;
+        
+        if (orientation == VectorOrientation.ROW_MAJOR) {
+            martixCopy = new double[vectors.length][vectors[0].lengthUnsafe()];
+            for (int i = 0; i < vectors.length; i++) {
+                for (int j = 0; j < vectors[i].lengthUnsafe(); j++) {
+                    martixCopy[i][j] = vectors[i].getUnsafe(j);
+                }
+            }
+        } else {
+
+            int numRows = vectors[0].lengthUnsafe();
+            int numCols = vectors.length;
+            martixCopy = new double[numRows][numCols];
+            for (int i = 0; i < numCols; i++) {
+                for (int j = 0; j < numRows; j++) {
+                    martixCopy[j][i] = vectors[i].getUnsafe(j);
+                }
             }
         }
+
         releaseAllVectorReadLocks(vectors);
 
-        // Transpose back to original orientation if needed
-        if (transposed) {
-            acquireAllVectorWriteLocks(vectors);
-            transposeMatrix();
-            releaseAllVectorWriteLocks(vectors);
-        }
-        
-        return newMartix;
+        return martixCopy;
     }
 
     public SharedVector get(int index) {
         if (index < 0 || index >= vectors.length) {
-            throw new IndexOutOfBoundsException("Index " + index + " is out of bounds for matrix of size " + vectors.length);
+            throw new IndexOutOfBoundsException(
+                    "Index " + index + " is out of bounds for matrix of size " + vectors.length);
         }
         return vectors[index];
     }

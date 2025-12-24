@@ -7,7 +7,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class TiredThread extends Thread implements Comparable<TiredThread> {
 
-    private static final Runnable POISON_PILL = () -> {}; // Special task to signal shutdown
+    private static final Runnable POISON_PILL = () -> {
+    }; // Special task to signal shutdown
 
     private final int id; // Worker index assigned by the executor
     private final double fatigueFactor; // Multiplier for fatigue calculation
@@ -17,7 +18,8 @@ public class TiredThread extends Thread implements Comparable<TiredThread> {
     // Single-slot handoff queue; executor will put tasks here
     private final BlockingQueue<Runnable> handoff = new ArrayBlockingQueue<>(1);
 
-    private final AtomicBoolean busy = new AtomicBoolean(false); // Indicates if the worker is currently executing a task
+    private final AtomicBoolean busy = new AtomicBoolean(false); // Indicates if the worker is currently executing a
+                                                                 // task
 
     private final AtomicLong timeUsed = new AtomicLong(0); // Total time spent executing tasks
     private final AtomicLong timeIdle = new AtomicLong(0); // Total time spent idle
@@ -56,7 +58,7 @@ public class TiredThread extends Thread implements Comparable<TiredThread> {
      * it throws IllegalStateException.
      */
     public void newTask(Runnable task) {
-       // TODO
+        handoff.add(task);
     }
 
     /**
@@ -64,17 +66,51 @@ public class TiredThread extends Thread implements Comparable<TiredThread> {
      * Inserts a poison pill so the worker wakes up and exits.
      */
     public void shutdown() {
-       // TODO
+        alive.set(false); 
+        try {
+            handoff.put(POISON_PILL);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
-    @Override
+@Override
     public void run() {
-       // TODO
+        while (alive.get()) {
+            try {
+                Runnable task = handoff.take();
+
+                if (task == POISON_PILL) {
+                    break;
+                }
+                
+                busy.set(true);
+                
+                long currentTime = System.nanoTime();
+                long idleDuration = currentTime - idleStartTime.get();
+                timeIdle.addAndGet(idleDuration);
+                
+                long executionStartTime = System.nanoTime();
+                
+                task.run();
+                
+                long executionEndTime = System.nanoTime();
+                long executionDuration = executionEndTime - executionStartTime;
+                timeUsed.addAndGet(executionDuration);
+                
+                busy.set(false);
+                
+                idleStartTime.set(System.nanoTime());
+                
+            } catch (InterruptedException e) {
+                idleStartTime.set(System.nanoTime());
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @Override
     public int compareTo(TiredThread o) {
-        // TODO
-        return 0;
+        return Double.compare(getFatigue(), o.getFatigue());
     }
 }
