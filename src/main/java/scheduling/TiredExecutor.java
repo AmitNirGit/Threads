@@ -1,8 +1,6 @@
 package scheduling;
 
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TiredExecutor {
@@ -17,21 +15,71 @@ public class TiredExecutor {
             double min = 0.5;
             double max = 1.5;
             double randomValue = Math.random() * (max - min) + min;
-            workers[i] = new TiredThread(i,randomValue);
+            workers[i] = new TiredThread(i, randomValue);
+            workers[i].start();
             idleMinHeap.add(workers[i]);
         }
     }
 
     public void submit(Runnable task) {
-        // TODO
+        try {
+            TiredThread worker = idleMinHeap.take();
+
+            Runnable wrappedTask = () -> {
+                try {
+                    task.run();
+                } finally {
+                    idleMinHeap.add(worker);
+                    inFlight.decrementAndGet();
+                }
+            };
+
+            inFlight.incrementAndGet();
+            worker.newTask(wrappedTask);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void submitAll(Iterable<Runnable> tasks) {
-        // TODO: submit tasks one by one and wait until all finish
+        Object lock = new Object();
+        AtomicInteger TasksLeft = new AtomicInteger(0);
+
+        for (Runnable task : tasks) {
+            TasksLeft.incrementAndGet();
+            Runnable wrappedTask = () -> {
+                try {
+                    task.run();
+                } finally {
+                    TasksLeft.decrementAndGet();
+                    synchronized (lock) {
+                        lock.notifyAll();
+                    }
+                }
+            };
+            submit(wrappedTask);
+
+        }
+        synchronized (lock) {
+
+            while (TasksLeft.get() > 0) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+            }
+        }
+
     }
 
     public void shutdown() throws InterruptedException {
-        // TODO
+        for (TiredThread tiredThread : idleMinHeap) {
+            tiredThread.shutdown();
+        }
     }
 
     public synchronized String getWorkerReport() {
