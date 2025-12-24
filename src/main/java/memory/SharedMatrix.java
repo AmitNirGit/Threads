@@ -122,4 +122,8 @@ public class SharedMatrix {
             sharedVector.transpose();
         }
     }
+
+    public SharedVector[] getVectors(){
+        return this.vectors;
+    }
 }

@@ -17,9 +17,9 @@ public class SharedVector {
 
     public double get(int index) {
         readLock();
-        double vec = vector[index];
+        double val = vector[index];
         readUnlock();
-        return vec;
+        return val;
     }
 
     // Get value without locking
@@ -104,6 +104,27 @@ public class SharedVector {
     }
 
     public void vecMatMul(SharedMatrix matrix) {
-        // TODO: compute row-vector × matrix
+        writeLock();
+        double[][] martixCopy = matrix.readRowMajor();
+        if (martixCopy.length == 0 || martixCopy[0].length == 0) {
+            writeUnlock();
+            throw new Error("Cannot multiply with empty matrix");
+        }
+        if (vector.length != martixCopy.length) {
+            writeUnlock();
+            throw new Error("Vector length must match number of matrix rows");
+        }
+        
+        double[] newVector = new double[martixCopy[0].length];
+
+        for (int i = 0; i < martixCopy[0].length; i++) {
+            double sum = 0;
+            for (int j = 0; j < vector.length; j++) {
+                sum = sum + vector[j] * martixCopy[j][i];
+            }
+            newVector[i] = sum;
+        }
+        this.vector = newVector;
+        writeUnlock();
     }
 }
