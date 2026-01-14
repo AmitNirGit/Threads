@@ -76,8 +76,6 @@ public class SharedVector {
             other.readLock();
             try {
                 if (other.lengthUnsafe() != lengthUnsafe()) {
-                    writeUnlock();  
-                    other.readUnlock();
                     throw new Error("Vectors have different lengths");
                 }
                 for (int i = 0; i < vector.length; i++) {
@@ -92,8 +90,6 @@ public class SharedVector {
             writeLock();
             try {
                 if (other.lengthUnsafe() != lengthUnsafe()) {
-                    writeUnlock();  
-                    other.readUnlock();
                     throw new Error("Vectors have different lengths");
                 }
                 for (int i = 0; i < vector.length; i++) {
